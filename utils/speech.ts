@@ -85,7 +85,7 @@ export class AudioRecorder {
 /**
  * Función para enviar audio al backend para reconocimiento de voz
  */
-export const recognizeSpeech = async (audioBlob: Blob): Promise<string> => {
+export const recognizeSpeech = async (audioBlob: Blob): Promise<string | any> => {
   // Crear FormData para enviar el archivo
   const formData = new FormData();
   formData.append('audio', audioBlob);
@@ -114,6 +114,16 @@ export const recognizeSpeech = async (audioBlob: Blob): Promise<string> => {
     // Verificar si hay resultados
     if (!data.results || data.results.length === 0) {
       return '';
+    }
+
+    // NUEVO: Verificar si hay un error de duplicación
+    if (data.results[0].error && data.results[0].isDuplicate) {
+      return {
+        transcript: data.results[0].transcript || '',
+        error: true,
+        isDuplicate: true,
+        message: data.results[0].message || `Número duplicado detectado.`
+      };
     }
 
     // Devolver la transcripción con mayor confianza

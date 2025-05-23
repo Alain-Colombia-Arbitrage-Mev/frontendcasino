@@ -65,7 +65,7 @@ export const getLastRouletteNumbers = async (limit = 20) => {
 };
 
 // Insertar un nuevo número de ruleta
-export const insertRouletteNumber = async (number: number) => {
+export const insertRouletteNumber = async (number: number, customTimestamp?: string) => {
   const supabase = useSupabase();
   
   // Validar que el número sea válido en la ruleta (0-36)
@@ -115,13 +115,14 @@ export const insertRouletteNumber = async (number: number) => {
       console.log(`Entrada creada en roulette_history con ID: ${historyEntryId}`);
       
       // Ahora insertar en roulette_numbers_individual con la referencia a history
+      const timestamp = customTimestamp || new Date().toISOString();
       const result = await supabase
         .from('roulette_numbers_individual')
         .insert({
           history_entry_id: historyEntryId,
           number_value: number,
           color,
-          created_at: new Date().toISOString()
+          created_at: timestamp
         })
         .select();
       
@@ -200,6 +201,35 @@ export const insertRouletteNumber = async (number: number) => {
   return data[0];
 };
 
+// Función para verificar duplicados consecutivos de forma inteligente
+const checkConsecutiveDuplicate = (number: number, recentNumbers: number[]) => {
+  if (recentNumbers.length === 0) {
+    return { isDuplicate: false, message: '' };
+  }
+  
+  // Verificar si es el mismo número que el último (duplicado inmediato)
+  if (recentNumbers[0] === number) {
+    return {
+      isDuplicate: true,
+      message: `El número ${number} es idéntico al último número jugado. ¿Está seguro de que es correcto?`
+    };
+  }
+  
+  // Verificar si aparece 2 veces en los últimos 3 números (puede ser sospechoso)
+  const last3 = recentNumbers.slice(0, 3);
+  const appearances = last3.filter(n => n === number).length;
+  
+  if (appearances >= 2) {
+    return {
+      isDuplicate: true,
+      message: `El número ${number} ya apareció ${appearances} veces en los últimos 3 números. ¿Desea continuar?`
+    };
+  }
+  
+  // No es duplicado problemático
+  return { isDuplicate: false, message: '' };
+};
+
 // Función para procesar una entrada de texto con números separados por comas
 export const processNumbersInput = async (numbersText: string) => {
   // Comprobar si la entrada es válida
@@ -210,6 +240,10 @@ export const processNumbersInput = async (numbersText: string) => {
   
   console.log(`Procesando entrada: "${numbersText}"`);
   
+  // NUEVO: Obtener los últimos números para validar duplicados consecutivos
+  const recentNumbers = await getLastRouletteNumbers(5); // Reducir a 5 números más recientes
+  const recentNumberValues = recentNumbers.map(item => item.number);
+  
   // Manejo especial para entrada de voz (solo un número)
   if (/^\d+$/.test(numbersText.trim())) {
     const singleNumber = parseInt(numbersText.trim());
@@ -218,6 +252,19 @@ export const processNumbersInput = async (numbersText: string) => {
     if (singleNumber < 0 || singleNumber > 36 || isNaN(singleNumber)) {
       console.error(`Número inválido: ${singleNumber}. Debe estar entre 0 y 36.`);
       return null;
+    }
+    
+    // MEJORADO: Verificar duplicados consecutivos más inteligentemente
+    const isDuplicateConsecutive = checkConsecutiveDuplicate(singleNumber, recentNumberValues);
+    if (isDuplicateConsecutive.isDuplicate) {
+      console.error(`El número ${singleNumber} se detectó como duplicado consecutivo.`);
+      return {
+        error: true,
+        message: isDuplicateConsecutive.message,
+        isDuplicate: true,
+        duplicateNumber: singleNumber,
+        allowOverride: true // Permitir anular la validación si es necesario
+      };
     }
     
     console.log(`Procesando número único del reconocimiento de voz: ${singleNumber}`);
@@ -280,10 +327,31 @@ export const processNumbersInput = async (numbersText: string) => {
   
   console.log(`Números extraídos: ${numbersArray.join(', ')}`);
   
+  // MEJORADO: Verificar duplicados consecutivos para múltiples números
+  const problematicNumbers = [];
+  for (const num of numbersArray) {
+    const duplicateCheck = checkConsecutiveDuplicate(num, recentNumberValues);
+    if (duplicateCheck.isDuplicate) {
+      problematicNumbers.push({ number: num, reason: duplicateCheck.message });
+    }
+  }
+  
+  if (problematicNumbers.length > 0) {
+    const problemList = problematicNumbers.map(p => `${p.number} (${p.reason})`).join(', ');
+    console.error(`Números con posibles duplicados: ${problemList}`);
+    return {
+      error: true,
+      message: `Se detectaron posibles duplicados: ${problemList}. ¿Desea continuar de todos modos?`,
+      isDuplicate: true,
+      duplicateNumbers: problematicNumbers.map(p => p.number),
+      allowOverride: true
+    };
+  }
+  
   // IMPORTANTE: En la entrada, el número de la izquierda es el último jugado
-  // Ejemplo: "8,33,25" - El 8 es el último número jugado, debe ser procesado primero
-  // Invertimos el orden para procesarlos correctamente (primero el más reciente)
-  const processOrder = [...numbersArray]; // Crear una copia
+  // Ejemplo: "19,20,12,11" - El 19 es el último número jugado, debe ser procesado ÚLTIMO para que aparezca como más reciente
+  // Invertimos el orden para procesarlos correctamente (el más reciente se inserta al final)
+  const processOrder = [...numbersArray].reverse(); // Invertir para procesar el más reciente al final
   
   // Insertar números en bloques más pequeños para evitar sobrecarga
   const validResults = [];
@@ -293,12 +361,19 @@ export const processNumbersInput = async (numbersText: string) => {
     const batch = processOrder.slice(i, i + batchSize);
     
     try {
-      // Insertar cada número individualmente 
+      // Insertar cada número individualmente manteniendo el orden temporal correcto
       const promises = batch.map(async (number, index) => {
         console.log(`Insertando número ${number} del lote ${Math.floor(i/batchSize) + 1}`);
-        // Añadir un retraso más pequeño para reducir la carga pero mantener el orden
-        await new Promise(resolve => setTimeout(resolve, index * 50));
-        return insertRouletteNumber(number);
+        
+        // Calcular timestamp: los números más antiguos tienen timestamps más antiguos
+        const baseTime = new Date();
+        const totalPosition = i + index;
+        // Restamos segundos para que los números anteriores en la secuencia tengan timestamps más antiguos
+        const adjustedTime = new Date(baseTime.getTime() - (processOrder.length - totalPosition - 1) * 1000);
+        
+        // Añadir un retraso para evitar sobrecarga del servidor
+        await new Promise(resolve => setTimeout(resolve, index * 100));
+        return insertRouletteNumber(number, adjustedTime.toISOString());
       });
       
       const results = await Promise.all(promises);
@@ -511,4 +586,162 @@ export const getRouletteNumberSequences = async (limit = 100) => {
   }
   
   return sequences;
+};
+
+// ============================================================================
+// FUNCIONES DE PURGA DE BASE DE DATOS
+// ============================================================================
+
+// Obtener estado actual de la base de datos
+export const obtenerEstadoBaseDatos = async () => {
+  try {
+    const apiBaseUrl = process.server ? '' : window.location.origin.includes('localhost') ? 'http://localhost:5000' : window.location.origin;
+    
+    const response = await fetch(`${apiBaseUrl}/estado-db`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Error en la respuesta: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error al obtener estado de la base de datos:', error);
+    return {
+      success: false,
+      error: error.message || 'Error desconocido'
+    };
+  }
+};
+
+// Ejecutar purga manual de la base de datos
+export const ejecutarPurgaManual = async (mantenerHoras = 48, mantenerMinimo = 50) => {
+  try {
+    const apiBaseUrl = process.server ? '' : window.location.origin.includes('localhost') ? 'http://localhost:5000' : window.location.origin;
+    
+    const response = await fetch(`${apiBaseUrl}/purgar-db`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        mantener_horas: mantenerHoras,
+        mantener_minimo: mantenerMinimo
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Error en la respuesta: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error al ejecutar purga manual:', error);
+    return {
+      success: false,
+      error: error.message || 'Error desconocido'
+    };
+  }
+};
+
+// Verificar si la base de datos necesita purga
+export const verificarNecesidadPurga = async () => {
+  try {
+    const estado = await obtenerEstadoBaseDatos();
+    
+    if (!estado.success) {
+      return {
+        necesita: false,
+        error: estado.error
+      };
+    }
+    
+    const { estado: estadoDb } = estado;
+    
+    return {
+      necesita: estadoDb.necesita_purga,
+      horasDesdeAntiguo: estadoDb.horas_desde_mas_antiguo,
+      totalRegistros: estadoDb.total_registros,
+      registrosRecientes: {
+        ultimas24h: estadoDb.registros_ultimas_24h,
+        ultimas48h: estadoDb.registros_ultimas_48h
+      },
+      fechaAntigua: estadoDb.registro_mas_antiguo,
+      fechaReciente: estadoDb.registro_mas_reciente
+    };
+  } catch (error) {
+    console.error('Error al verificar necesidad de purga:', error);
+    return {
+      necesita: false,
+      error: error.message || 'Error desconocido'
+    };
+  }
+};
+
+// Función para mostrar información legible sobre el estado de la DB
+export const formatearEstadoDb = (estadoRaw: any) => {
+  if (!estadoRaw || !estadoRaw.success) {
+    return {
+      mensaje: 'Error al obtener estado de la base de datos',
+      detalles: estadoRaw?.error || 'Error desconocido'
+    };
+  }
+  
+  const estado = estadoRaw.estado;
+  
+  // Formatear fechas
+  const formatearFecha = (isoString: string) => {
+    try {
+      const fecha = new Date(isoString);
+      return fecha.toLocaleString('es-ES');
+    } catch {
+      return 'Fecha inválida';
+    }
+  };
+  
+  // Determinar el estado general
+  let estadoGeneral = '';
+  let color = '';
+  
+  if (estado.necesita_purga) {
+    estadoGeneral = '⚠️ Necesita purga';
+    color = 'text-orange-600';
+  } else if (estado.horas_desde_mas_antiguo > 36) {
+    estadoGeneral = '⏳ Próxima purga pronto';
+    color = 'text-yellow-600';
+  } else {
+    estadoGeneral = '✅ Estado normal';
+    color = 'text-green-600';
+  }
+  
+  return {
+    estadoGeneral,
+    color,
+    totalRegistros: {
+      individual: estado.total_registros.individual,
+      history: estado.total_registros.history,
+      total: estado.total_registros.individual + estado.total_registros.history
+    },
+    antiguedad: {
+      horas: Math.round(estado.horas_desde_mas_antiguo * 100) / 100,
+      fechaMasAntigua: estado.registro_mas_antiguo ? formatearFecha(estado.registro_mas_antiguo) : 'N/A',
+      fechaMasReciente: estado.registro_mas_reciente ? formatearFecha(estado.registro_mas_reciente) : 'N/A'
+    },
+    registrosRecientes: {
+      ultimas24h: estado.registros_ultimas_24h,
+      ultimas48h: estado.registros_ultimas_48h,
+      porcentaje24h: estado.total_registros.individual > 0 ? 
+        Math.round((estado.registros_ultimas_24h / estado.total_registros.individual) * 100) : 0,
+      porcentaje48h: estado.total_registros.individual > 0 ? 
+        Math.round((estado.registros_ultimas_48h / estado.total_registros.individual) * 100) : 0
+    },
+    necesitaPurga: estado.necesita_purga,
+    mensaje: `Base de datos con ${estado.total_registros.individual + estado.total_registros.history} registros. El más antiguo tiene ${Math.round(estado.horas_desde_mas_antiguo)} horas.`
+  };
 }; 

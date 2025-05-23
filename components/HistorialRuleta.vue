@@ -244,7 +244,10 @@ const processNewNumbers = async () => {
   if (!numbersInput.value.trim()) return;
   
   try {
-    const result = await processNumbersInput(numbersInput.value);
+// Procesar nuevos números
+      return;
+    }
+    
     if (result) {
       // Mostrar mensaje de éxito
       inputMessage.value = `Se han agregado ${result.processedCount} números correctamente. El último número jugado es: ${result.lastPlayed}`;

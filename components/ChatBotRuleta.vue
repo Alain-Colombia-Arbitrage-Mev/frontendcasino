@@ -1197,6 +1197,16 @@ const sendMessage = async () => {
   const message = userInput.value.trim();
   if (!message) return;
   
+  // NUEVO: Verificar si es un comando para anular validación de duplicados
+  const continueMatch = message.match(/^continuar\s+(\d+)$/i);
+  if (continueMatch) {
+    const numberToForce = parseInt(continueMatch[1]);
+    if (numberToForce >= 0 && numberToForce <= 36) {
+      await forceInsertNumber(numberToForce);
+      return;
+    }
+  }
+  
   // Agregar mensaje del usuario al chat
   chatMessages.value.push({
     id: Date.now(),
@@ -1263,6 +1273,24 @@ const sendMessage = async () => {
       
       // Ahora procesamos el número y lo insertamos en la base de datos
       const processed = await processNumbersInput(numberToAdd.toString());
+      
+      // MEJORADO: Verificar si el número es un duplicado con opción de continuar
+      if (processed && processed.error && processed.isDuplicate) {
+        const message = processed.allowOverride 
+          ? `${processed.message} Escriba "continuar ${numberToAdd}" para forzar la inserción.`
+          : processed.message;
+          
+        chatMessages.value.push({
+          id: Date.now(),
+          sender: 'bot',
+          message: message,
+          timestamp: new Date().toISOString(),
+          isDuplicate: true,
+          duplicateNumber: numberToAdd,
+          allowOverride: processed.allowOverride || false
+        });
+        return;
+      }
       
       if (processed && processed.processedCount > 0) {
         // Después de insertar el número, actualizamos la lista de números recientes
@@ -1422,6 +1450,17 @@ const sendMessage = async () => {
     try {
       const processed = await processNumbersInput(message);
       
+      // NUEVO: Verificar si hay números duplicados
+      if (processed && processed.error && processed.isDuplicate) {
+        chatMessages.value.push({
+          id: Date.now(),
+          sender: 'bot',
+          message: processed.message || `Algunos números ya fueron ingresados recientemente. Por favor, verifique e intente de nuevo con números diferentes.`,
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+      
       if (processed && processed.processedCount > 0) {
         // El último número es el primero de la lista (el más a la izquierda)
         const lastNumber = processed.lastPlayed;
@@ -1539,6 +1578,18 @@ const sendMessage = async () => {
       });
       
       const processed = await processNumbersInput(message);
+      
+      // NUEVO: Verificar si el número es un duplicado
+      if (processed && processed.error && processed.isDuplicate) {
+        chatMessages.value.push({
+          id: Date.now(),
+          sender: 'bot',
+          message: processed.message || `El número ${number} ya fue ingresado recientemente. No se agregará nuevamente para evitar duplicados.`,
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+      
       if (processed && processed.processedCount > 0) {
         // Actualizar todos los grupos tras ingresar un nuevo número
         await fetchLastNumbers();
@@ -2453,6 +2504,57 @@ const switchToManualInput = () => {
   });
 };
 
+// Función para forzar la inserción de un número ignorando validaciones de duplicados
+const forceInsertNumber = async (number: number) => {
+  try {
+    // Agregar mensaje del usuario al chat
+    chatMessages.value.push({
+      id: Date.now(),
+      sender: 'user',
+      message: `continuar ${number}`,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Forzar inserción directamente sin validaciones de duplicados
+    const result = await insertRouletteNumber(number);
+    
+    if (result) {
+      chatMessages.value.push({
+        id: Date.now(),
+        sender: 'bot',
+        message: `Número ${number} insertado forzosamente. Se ha añadido a la base de datos ignorando las validaciones de duplicados.`,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Actualizar datos
+      await fetchLastNumbers();
+      await refreshAllGroups();
+      
+      // Emitir eventos
+      if (emitter) {
+        emitter.emit('number-registered', { number });
+        emitter.emit('numbers-updated');
+        emitter.emit('last-number-played', number);
+      }
+    } else {
+      chatMessages.value.push({
+        id: Date.now(),
+        sender: 'bot',
+        message: `Error al insertar el número ${number} forzosamente.`,
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch (error) {
+    console.error('Error forcing number insertion:', error);
+    chatMessages.value.push({
+      id: Date.now(),
+      sender: 'bot',
+      message: `Error al insertar el número ${number} forzosamente: ${error}`,
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+
 // Función para usar Google Speech API en lugar de Web Speech API
 const useGoogleSpeechRecognition = async () => {
   try {
@@ -2482,18 +2584,36 @@ const useGoogleSpeechRecognition = async () => {
           const audioBlob = await audioRecorder.value!.stopRecording();
           
           // Enviar a backend para reconocimiento
-          const transcript = await recognizeSpeech(audioBlob);
+          const result = await recognizeSpeech(audioBlob);
           
-          if (transcript) {
-            // Actualizar campo de entrada
-            userInput.value = transcript;
-            voiceStatus.value = 'success';
+          // NUEVO: Verificar si hay error de duplicación
+          if (result && typeof result === 'object' && result.error && result.isDuplicate) {
+            // Mostrar mensaje de error de duplicación
+            chatMessages.value.push({
+              id: Date.now(),
+              sender: 'bot',
+              message: result.message || 'Este número ya fue ingresado recientemente.',
+              timestamp: new Date().toISOString()
+            });
             
-            // Pequeña pausa para actualizar UI
-            setTimeout(() => {
-              // Procesar el mensaje
-              sendMessage();
-            }, 100);
+            voiceStatus.value = 'error';
+            voiceError.value = 'Número duplicado detectado';
+            return false;
+          }
+          
+          if (result) {
+            // Si es solo el texto de transcripción
+            if (typeof result === 'string') {
+              // Actualizar campo de entrada
+              userInput.value = result;
+              voiceStatus.value = 'success';
+              
+              // Pequeña pausa para actualizar UI
+              setTimeout(() => {
+                // Procesar el mensaje
+                sendMessage();
+              }, 100);
+            }
           } else {
             voiceError.value = 'No se detectó ningún texto. Intenta hablar más claro.';
             voiceStatus.value = 'error';
@@ -2533,6 +2653,18 @@ const handleRecognizedNumber = async (numberToAdd: number) => {
   console.log(`\n========== PROCESANDO NUEVO NÚMERO: ${numberToAdd} ==========`);
   try {
     const processed = await processNumbersInput(numberToAdd.toString());
+    
+    // NUEVO: Verificar si el número es un duplicado
+    if (processed && processed.error && processed.isDuplicate) {
+      chatMessages.value.push({
+        id: Date.now(),
+        sender: 'bot',
+        message: processed.message || `El número ${numberToAdd} ya fue ingresado recientemente. No se agregará nuevamente para evitar duplicados.`,
+        timestamp: new Date().toISOString()
+      });
+      return;
+    }
+    
     if (!processed || processed.processedCount === 0) {
       console.error(`Error al procesar el número ${numberToAdd}`);
       return;
