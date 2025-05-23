@@ -2049,9 +2049,10 @@ const checkGroupsForNumber = (number: number): GroupCheckResult => {
   
   // ========== PASO 3: VERIFICAR GRUPOS ADICIONALES PARA ESTADÍSTICAS ==========
   
-  // Verificar resto de grupos estándar
+  // Verificar resto de grupos estándar (excluyendo los grupos principales que ya verificamos)
   Object.entries(numberGroups.value).forEach(([groupName, numbers]) => {
-    if (groupName !== 'group20' && groupName !== 'group12' && numbers && numbers.includes(number)) {
+    // Excluir los grupos principales que ya fueron verificados en el PASO 2
+    if (groupName !== 'group20' && groupName !== 'group15' && groupName !== 'group12' && groupName !== 'group9' && numbers && numbers.includes(number)) {
       result.matchingGroups.push(`estándar: ${getGroupLabel(groupName)}`);
       // Incrementar contador específico
       if (groupWinStats.value[groupName] !== undefined) {
