@@ -232,6 +232,44 @@ export const generateNumberGroups = async () => {
       group8.push(i);
     }
   }
+
+  // Grupo de 9 números - Estrategia mixta avanzada con sectores de ruleta
+  const group9Set = new Set<number>();
+  
+  // 1. Añadir los 3 números más frecuentes
+  Array.from(freqMap.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .forEach(entry => group9Set.add(entry[0]));
+  
+  // 2. Añadir números de sector de vecinos del cero (2 números)
+  const voisinsNumbers = [0, 2, 3, 4, 7, 12, 15, 18, 19, 21, 22, 25, 26, 28, 29, 32, 35];
+  const shuffledVoisins = voisinsNumbers.sort(() => Math.random() - 0.5);
+  let addedVoisins = 0;
+  for (const num of shuffledVoisins) {
+    if (!group9Set.has(num) && addedVoisins < 2) {
+      group9Set.add(num);
+      addedVoisins++;
+    }
+  }
+  
+  // 3. Añadir números de la columna más frecuente (2 números)
+  const mostFreqCol9 = colFreq.indexOf(Math.max(...colFreq));
+  let addedFromColumn9 = 0;
+  for (let i = 1; i <= 36 && addedFromColumn9 < 2; i++) {
+    if ((i - 1) % 3 === mostFreqCol9 && !group9Set.has(i)) {
+      group9Set.add(i);
+      addedFromColumn9++;
+    }
+  }
+  
+  // 4. Añadir números aleatorios hasta completar 9
+  while (group9Set.size < 9) {
+    const randNum = Math.floor(Math.random() * 37); // 0-36
+    group9Set.add(randNum);
+  }
+  
+  const group9 = Array.from(group9Set);
   
   // Grupo de 6 números - Usar la columna más frecuente
   const mostFreqCol = colFreq.indexOf(Math.max(...colFreq));
@@ -294,6 +332,7 @@ export const generateNumberGroups = async () => {
   console.log(`Grupo 20: [${Array.from(group20).sort((a, b) => a - b).join(', ')}]`);
   console.log(`Grupo 15: [${Array.from(group15).sort((a, b) => a - b).join(', ')}]`);
   console.log(`Grupo 12: [${Array.from(group12).sort((a, b) => a - b).join(', ')}]`);
+  console.log(`Grupo 9: [${Array.from(group9).sort((a, b) => a - b).join(', ')}]`);
   console.log(`Última fecha de generación: ${new Date().toLocaleTimeString()}`);
   
   return {
@@ -301,6 +340,7 @@ export const generateNumberGroups = async () => {
     group15,
     group12,
     group8,
+    group9,
     group6,
     group4
   };
@@ -313,6 +353,7 @@ export const checkWinningNumber = (number: number, groups: any) => {
     group15: groups.group15.includes(number),
     group12: groups.group12.includes(number),
     group8: groups.group8.includes(number),
+    group9: groups.group9.includes(number),
     group6: groups.group6.includes(number),
     group4: groups.group4.includes(number)
   };
