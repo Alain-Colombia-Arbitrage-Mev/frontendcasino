@@ -21,6 +21,9 @@ export interface ChatMessage {
   timestamp: string;
   isWinning?: boolean;
   numbersGenerated?: number[];
+  isDuplicate?: boolean;
+  duplicateNumber?: number;
+  allowOverride?: boolean;
 }
 
 // Tipos para las estadísticas

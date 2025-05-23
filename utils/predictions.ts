@@ -249,14 +249,56 @@ export const generateNumberGroups = async () => {
     .slice(0, 4)
     .map(entry => entry[0]);
   
+  // Grupo de 15 números - Combinación inteligente de estrategias múltiples
+  const group15Set = new Set<number>();
+  
+  // 1. Añadir los 5 números más frecuentes
+  Array.from(freqMap.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .forEach(entry => group15Set.add(entry[0]));
+  
+  // 2. Añadir números de la docena más frecuente (máximo 4)
+  const mostFreqDozen15 = dozenFreq.indexOf(Math.max(...dozenFreq));
+  const dozenStart15 = mostFreqDozen15 * 12 + 1;
+  const dozenEnd15 = dozenStart15 + 11;
+  
+  let addedFromDozen = 0;
+  for (let i = dozenStart15; i <= dozenEnd15 && addedFromDozen < 4; i++) {
+    if (!group15Set.has(i)) {
+      group15Set.add(i);
+      addedFromDozen++;
+    }
+  }
+  
+  // 3. Añadir números de la columna más frecuente (máximo 3)
+  const mostFreqCol15 = colFreq.indexOf(Math.max(...colFreq));
+  let addedFromColumn = 0;
+  for (let i = 1; i <= 36 && addedFromColumn < 3; i++) {
+    if ((i - 1) % 3 === mostFreqCol15 && !group15Set.has(i)) {
+      group15Set.add(i);
+      addedFromColumn++;
+    }
+  }
+  
+  // 4. Añadir números aleatorios hasta completar 15
+  while (group15Set.size < 15) {
+    const randNum = Math.floor(Math.random() * 37); // 0-36
+    group15Set.add(randNum);
+  }
+  
+  const group15 = Array.from(group15Set);
+  
   // Registrar en consola para depuración
   console.log(`=== GRUPOS GENERADOS DINÁMICAMENTE ===`);
   console.log(`Grupo 20: [${Array.from(group20).sort((a, b) => a - b).join(', ')}]`);
+  console.log(`Grupo 15: [${Array.from(group15).sort((a, b) => a - b).join(', ')}]`);
   console.log(`Grupo 12: [${Array.from(group12).sort((a, b) => a - b).join(', ')}]`);
   console.log(`Última fecha de generación: ${new Date().toLocaleTimeString()}`);
   
   return {
     group20,
+    group15,
     group12,
     group8,
     group6,
@@ -268,6 +310,7 @@ export const generateNumberGroups = async () => {
 export const checkWinningNumber = (number: number, groups: any) => {
   const results = {
     group20: groups.group20.includes(number),
+    group15: groups.group15.includes(number),
     group12: groups.group12.includes(number),
     group8: groups.group8.includes(number),
     group6: groups.group6.includes(number),

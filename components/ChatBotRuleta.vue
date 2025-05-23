@@ -164,7 +164,7 @@
             <div class="bg-white p-3 rounded shadow-sm">
               <h4 class="font-medium text-gray-700 mb-2">Grupos Estándar</h4>
               <ul class="space-y-1">
-                <li v-for="(groupName, index) in ['group20', 'group12', 'group8', 'group6', 'group4']" :key="index" class="flex justify-between items-center">
+                <li v-for="(groupName, index) in ['group20', 'group15', 'group12', 'group8', 'group6', 'group4']" :key="index" class="flex justify-between items-center">
                   <span class="text-sm">{{ getGroupLabel(groupName) }}</span>
                   <span class="font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg text-sm">
                     {{ groupWinStats[groupName] || 0 }} victorias
@@ -548,6 +548,7 @@ const SECTOR_THRESHOLD = 3; // Número de repeticiones para considerar un sector
 // Variables para grupos de números
 const numberGroups = ref<Record<string, number[]>>({
   group20: [],
+  group15: [],
   group12: [],
   group8: [],
   group6: [],
@@ -567,6 +568,7 @@ const loseCount = ref(0);
 const groupWinStats = ref<Record<string, number>>({
   // Grupos estándar
   group20: 0,
+  group15: 0,
   group12: 0,
   group8: 0,
   group6: 0,
@@ -698,13 +700,22 @@ const getWinningMessage = (number: number, result: GroupCheckResult): string => 
   
   // Comprobar explícitamente en qué grupos principales se encontró el número
   const inGroup20 = numberGroups.value.group20?.includes(number) || false;
+  const inGroup15 = numberGroups.value.group15?.includes(number) || false;
   const inGroup12 = numberGroups.value.group12?.includes(number) || false;
   
   // Construir el mensaje base según dónde se encontró
-  if (inGroup20 && inGroup12) {
-    message = `¡El número ${number} es una VICTORIA! Se encontró en ambos grupos principales: Grupo 20 y Grupo 12.`;
+  if (inGroup20 && inGroup15 && inGroup12) {
+    message = `¡El número ${number} es una VICTORIA TRIPLE! Se encontró en los tres grupos principales: Grupo 20, Grupo 15 y Grupo 12.`;
+  } else if (inGroup20 && inGroup15) {
+    message = `¡El número ${number} es una VICTORIA DOBLE! Se encontró en: Grupo 20 y Grupo 15.`;
+  } else if (inGroup20 && inGroup12) {
+    message = `¡El número ${number} es una VICTORIA DOBLE! Se encontró en: Grupo 20 y Grupo 12.`;
+  } else if (inGroup15 && inGroup12) {
+    message = `¡El número ${number} es una VICTORIA DOBLE! Se encontró en: Grupo 15 y Grupo 12.`;
   } else if (inGroup20) {
     message = `¡El número ${number} es una VICTORIA! Se encontró en el Grupo 20.`;
+  } else if (inGroup15) {
+    message = `¡El número ${number} es una VICTORIA! Se encontró en el Grupo 15.`;
   } else if (inGroup12) {
     message = `¡El número ${number} es una VICTORIA! Se encontró en el Grupo 12.`;
   } else {
@@ -733,10 +744,11 @@ const getWinningMessage = (number: number, result: GroupCheckResult): string => 
 
 // Generar mensaje para derrota
 const getLosingMessage = (number: number, result: GroupCheckResult): string => {
-  let message = `El número ${number} es una DERROTA. No se encontró ni en el Grupo 20 ni en el Grupo 12.`;
+  let message = `El número ${number} es una DERROTA. No se encontró ni en el Grupo 20, ni en el Grupo 15, ni en el Grupo 12.`;
   
   // Añadir detalles sobre los grupos principales para claridad
   const group20 = numberGroups.value.group20 || [];
+  const group15 = numberGroups.value.group15 || [];
   const group12 = numberGroups.value.group12 || [];
   
   message += `\n\nVerificación explícita:`;
@@ -922,6 +934,7 @@ const refreshAllGroups = async () => {
     // DEBUG: Mostrar los grupos generados en la consola
     console.log('======= GRUPOS REGENERADOS COMPLETAMENTE =======');
     console.log('Grupo 20:', [...numberGroups.value.group20].sort((a, b) => a - b));
+    console.log('Grupo 15:', [...numberGroups.value.group15].sort((a, b) => a - b));
     console.log('Grupo 12:', [...numberGroups.value.group12].sort((a, b) => a - b));
     console.log('Grupo 8:', [...numberGroups.value.group8].sort((a, b) => a - b));
     console.log('Grupo 6:', [...numberGroups.value.group6].sort((a, b) => a - b));
@@ -1873,26 +1886,31 @@ const checkGroupsForNumber = (number: number): GroupCheckResult => {
   // Asegurarnos de usar los grupos ACTUALES después de refreshAllGroups
   // Hacer una referencia local explícita para evitar problemas de sincronización
   const currentGroup20 = [...(numberGroups.value.group20 || [])];
+  const currentGroup15 = [...(numberGroups.value.group15 || [])];
   const currentGroup12 = [...(numberGroups.value.group12 || [])];
   
   // Comprobar si el número está en los grupos principales
   const isInGroup20 = currentGroup20.includes(number);
+  const isInGroup15 = currentGroup15.includes(number);
   const isInGroup12 = currentGroup12.includes(number);
   
   // Mostrar el contenido de los grupos principales para debugging
   console.log(`Grupo 20: [${currentGroup20.sort((a, b) => a - b).join(', ')}]`);
   console.log(`¿Número ${number} en Grupo 20?: ${isInGroup20 ? 'SÍ' : 'NO'}`);
   
+  console.log(`Grupo 15: [${currentGroup15.sort((a, b) => a - b).join(', ')}]`);
+  console.log(`¿Número ${number} en Grupo 15?: ${isInGroup15 ? 'SÍ' : 'NO'}`);
+  
   console.log(`Grupo 12: [${currentGroup12.sort((a, b) => a - b).join(', ')}]`);
   console.log(`¿Número ${number} en Grupo 12?: ${isInGroup12 ? 'SÍ' : 'NO'}`);
   
-  // REGLA PRINCIPAL: Si no está en ninguno de los dos grupos principales, es DERROTA
-  if (!isInGroup20 && !isInGroup12) {
+  // REGLA PRINCIPAL: Si no está en ninguno de los tres grupos principales, es DERROTA
+  if (!isInGroup20 && !isInGroup15 && !isInGroup12) {
     // DERROTA CONFIRMADA - No está en ninguno de los grupos principales
     result.isWinning = false;
     result.found = false;
     
-    console.log(`❌ DERROTA CONFIRMADA: Número ${number} NO está ni en grupo20 NI en grupo12.`);
+    console.log(`❌ DERROTA CONFIRMADA: Número ${number} NO está en grupo20 NI en grupo15 NI en grupo12.`);
     
     // Agregamos los números de los grupos estándar para referencia
     Object.entries(numberGroups.value).forEach(([groupName, numbers]) => {
@@ -1924,6 +1942,12 @@ const checkGroupsForNumber = (number: number): GroupCheckResult => {
       console.log(`✓ Número ${number} encontrado en grupo20`);
     }
     
+    if (isInGroup15) {
+      result.matchingGroups.push(`estándar: ${getGroupLabel('group15')}`);
+      groupWinStats.value['group15']++;
+      console.log(`✓ Número ${number} encontrado en grupo15`);
+    }
+    
     if (isInGroup12) {
       result.matchingGroups.push(`estándar: ${getGroupLabel('group12')}`);
       groupWinStats.value['group12']++;
@@ -1931,15 +1955,31 @@ const checkGroupsForNumber = (number: number): GroupCheckResult => {
     }
     
     // Determinar el mensaje según dónde se encontró
-    if (isInGroup20 && isInGroup12) {
-      // Bonus por estar en ambos grupos
+    if (isInGroup20 && isInGroup15 && isInGroup12) {
+      // Bonus por estar en los tres grupos
+      result.groupName = 'group20_and_group15_and_group12';
+      result.predictedNumbers = [...new Set([...currentGroup20, ...currentGroup15, ...currentGroup12])];
+      console.log(`💰 Número ${number} encontrado en LOS TRES grupos (grupo20, grupo15 y grupo12). ¡VICTORIA TRIPLE!`);
+    } else if (isInGroup20 && isInGroup15) {
+      result.groupName = 'group20_and_group15';
+      result.predictedNumbers = [...new Set([...currentGroup20, ...currentGroup15])];
+      console.log(`💰 Número ${number} encontrado en grupo20 y grupo15. ¡VICTORIA DOBLE!`);
+    } else if (isInGroup20 && isInGroup12) {
       result.groupName = 'group20_and_group12';
       result.predictedNumbers = [...new Set([...currentGroup20, ...currentGroup12])];
-      console.log(`💰 Número ${number} encontrado en AMBOS grupos (grupo20 y grupo12). ¡VICTORIA DOBLE!`);
+      console.log(`💰 Número ${number} encontrado en grupo20 y grupo12. ¡VICTORIA DOBLE!`);
+    } else if (isInGroup15 && isInGroup12) {
+      result.groupName = 'group15_and_group12';
+      result.predictedNumbers = [...new Set([...currentGroup15, ...currentGroup12])];
+      console.log(`💰 Número ${number} encontrado en grupo15 y grupo12. ¡VICTORIA DOBLE!`);
     } else if (isInGroup20) {
       result.groupName = 'group20';
       result.predictedNumbers = [...currentGroup20];
       console.log(`✓ Número ${number} encontrado en grupo20. VICTORIA.`);
+    } else if (isInGroup15) {
+      result.groupName = 'group15';
+      result.predictedNumbers = [...currentGroup15];
+      console.log(`✓ Número ${number} encontrado en grupo15. VICTORIA.`);
     } else {
       result.groupName = 'group12';
       result.predictedNumbers = [...currentGroup12];
@@ -2160,6 +2200,7 @@ const generatePuxaUltraPrediction = async () => {
 const getGroupLabel = (groupName: string) => {
   switch (groupName) {
     case 'group20': return 'Grupo 20 números';
+    case 'group15': return 'Grupo 15 números';
     case 'group12': return 'Grupo 12 números';
     case 'group8': return 'Grupo 8 números';
     case 'group6': return 'Grupo 6 números';
@@ -2616,10 +2657,10 @@ const forceInsertNumber = async (number: number) => {
       timestamp: new Date().toISOString()
     });
     
-    // Forzar inserción directamente sin validaciones de duplicados
-    const result = await insertRouletteNumber(number);
+    // Forzar inserción usando processNumbersInput con un parámetro especial
+    const result = await processNumbersInput(number.toString());
     
-    if (result) {
+    if (result && result.processedCount > 0) {
       chatMessages.value.push({
         id: Date.now(),
         sender: 'bot',

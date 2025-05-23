@@ -244,9 +244,7 @@ const processNewNumbers = async () => {
   if (!numbersInput.value.trim()) return;
   
   try {
-// Procesar nuevos números
-      return;
-    }
+    const result = await processNumbersInput(numbersInput.value);
     
     if (result) {
       // Mostrar mensaje de éxito
