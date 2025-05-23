@@ -2048,6 +2048,10 @@ const checkGroupsForNumber = (number: number): GroupCheckResult => {
       result.groupName = 'group12';
       result.predictedNumbers = [...currentGroup12];
       console.log(`✓ Número ${number} encontrado en grupo12. VICTORIA.`);
+    } else if (isInGroup9) {
+      result.groupName = 'group9';
+      result.predictedNumbers = [...currentGroup9];
+      console.log(`✓ Número ${number} encontrado en grupo9. VICTORIA.`);
     }
     
     // Incrementar contador de victorias
