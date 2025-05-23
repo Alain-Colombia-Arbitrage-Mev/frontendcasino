@@ -778,18 +778,25 @@ const getLosingMessage = (number: number, result: GroupCheckResult): string => {
   const group20 = numberGroups.value.group20 || [];
   const group15 = numberGroups.value.group15 || [];
   const group12 = numberGroups.value.group12 || [];
+  const group9 = numberGroups.value.group9 || [];
   
   message += `\n\nVerificación explícita:`;
   message += `\n• Grupo 20: ${group20.includes(number) ? '✓' : '✗'}`;
+  message += `\n• Grupo 15: ${group15.includes(number) ? '✓' : '✗'}`;
   message += `\n• Grupo 12: ${group12.includes(number) ? '✓' : '✗'}`;
+  message += `\n• Grupo 9: ${group9.includes(number) ? '✓' : '✗'}`;
   
   // Mostrar los contenidos de los grupos para verificación
   const group20Sorted = [...group20].sort((a, b) => a - b);
+  const group15Sorted = [...group15].sort((a, b) => a - b);
   const group12Sorted = [...group12].sort((a, b) => a - b);
+  const group9Sorted = [...group9].sort((a, b) => a - b);
   
   message += `\n\nContenido de los grupos de predicción:`;
   message += `\n• Grupo 20: [${group20Sorted.join(', ')}]`;
+  message += `\n• Grupo 15: [${group15Sorted.join(', ')}]`;
   message += `\n• Grupo 12: [${group12Sorted.join(', ')}]`;
+  message += `\n• Grupo 9: [${group9Sorted.join(', ')}]`;
   
   // Añadir información del sector si existe
   if (result.rouletteSector) {
