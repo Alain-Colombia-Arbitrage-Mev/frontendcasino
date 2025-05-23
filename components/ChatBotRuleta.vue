@@ -69,20 +69,23 @@
     
     <!-- Información del último número ganador -->
     <div v-if="lastWinningResult && lastWinningResult.isWinning" class="mb-4 bg-green-50 p-3 rounded-lg border border-green-200">
-      <h3 class="text-lg font-semibold text-green-700 mb-2">¡Último Resultado Ganador!</h3>
+      <h3 class="text-base sm:text-lg font-semibold text-green-700 mb-2">¡Último Resultado Ganador!</h3>
       <div class="flex items-center mb-2">
-        <span class="font-bold text-xl mr-2">Número:</span>
+        <span class="font-bold text-lg sm:text-xl mr-2">Número:</span>
         <span class="inline-block w-8 h-8 rounded-full bg-gray-800 text-white flex items-center justify-center font-bold">
           {{ lastWinningResult.number }}
         </span>
       </div>
       <div class="text-sm mb-2">
-        <p class="font-semibold">Grupos donde apareció:</p>
-        <ul class="pl-4 list-disc">
-          <li v-for="(group, index) in lastWinningResult.matchingGroups" :key="index">
-            {{ group }}
-          </li>
-        </ul>
+        <p class="font-semibold mb-1">Grupos donde apareció:</p>
+        <div class="bg-white p-2 rounded border">
+          <ul class="space-y-1">
+            <li v-for="(group, index) in lastWinningResult.matchingGroups" :key="index" class="text-xs sm:text-sm flex items-start">
+              <span class="inline-block w-2 h-2 bg-green-500 rounded-full mt-1.5 mr-2 flex-shrink-0"></span>
+              <span class="break-words">{{ group }}</span>
+            </li>
+          </ul>
+        </div>
       </div>
       <div v-if="lastWinningResult.rouletteSector" class="text-sm mb-2 bg-blue-50 p-2 rounded">
         <p class="font-semibold text-blue-700">
@@ -133,27 +136,27 @@
     </div>
     
     <!-- Estadísticas detalladas de victorias por grupo -->
-    <div class="mb-4 bg-indigo-50 p-4 rounded-lg border border-indigo-200">
-      <div class="flex justify-between items-center mb-3">
-        <h3 class="text-lg font-semibold text-indigo-700">Análisis de Victorias por Grupo</h3>
-        <div class="flex gap-2">
+    <div class="mb-4 bg-indigo-50 p-3 sm:p-4 rounded-lg border border-indigo-200">
+      <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 gap-2">
+        <h3 class="text-base sm:text-lg font-semibold text-indigo-700">Análisis de Victorias por Grupo</h3>
+        <div class="flex flex-wrap gap-1 sm:gap-2">
           <button 
             @click="statsViewMode = 'details'" 
-            class="text-xs px-2 py-1 rounded"
+            class="text-xs px-2 py-1 rounded flex-1 sm:flex-none"
             :class="statsViewMode === 'details' ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-700'"
           >
             Detalles
           </button>
           <button 
             @click="statsViewMode = 'chart'" 
-            class="text-xs px-2 py-1 rounded"
+            class="text-xs px-2 py-1 rounded flex-1 sm:flex-none"
             :class="statsViewMode === 'chart' ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-700'"
           >
             Gráfico
           </button>
           <button 
             @click="showStatsDetails = !showStatsDetails" 
-            class="text-xs bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-2 py-1 rounded flex items-center"
+            class="text-xs bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-2 py-1 rounded flex items-center justify-center flex-1 sm:flex-none"
             v-if="statsViewMode === 'details'"
           >
             <span v-if="showStatsDetails">Ocultar</span>
@@ -166,14 +169,14 @@
       <!-- Vista de detalles -->
       <div v-if="statsViewMode === 'details'">
         <transition name="fade">
-          <div v-if="showStatsDetails" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div v-if="showStatsDetails" class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <!-- Grupos estándar -->
             <div class="bg-white p-3 rounded shadow-sm">
-              <h4 class="font-medium text-gray-700 mb-2">Grupos Estándar</h4>
+              <h4 class="font-medium text-gray-700 mb-2 text-sm sm:text-base">Grupos Estándar</h4>
               <ul class="space-y-1">
                 <li v-for="(groupName, index) in ['group20', 'group15', 'group12', 'group9', 'group8', 'group6', 'group4']" :key="index" class="flex justify-between items-center">
-                  <span class="text-sm">{{ getGroupLabel(groupName) }}</span>
-                  <span class="font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg text-sm">
+                  <span class="text-xs sm:text-sm break-words flex-1 mr-2">{{ getGroupLabel(groupName) }}</span>
+                  <span class="font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg text-xs sm:text-sm whitespace-nowrap">
                     {{ groupWinStats[groupName] || 0 }} victorias
                   </span>
                 </li>
@@ -182,11 +185,11 @@
 
             <!-- Grupos estadísticos -->
             <div class="bg-white p-3 rounded shadow-sm">
-              <h4 class="font-medium text-gray-700 mb-2">Grupos Estadísticos</h4>
+              <h4 class="font-medium text-gray-700 mb-2 text-sm sm:text-base">Grupos Estadísticos</h4>
               <ul class="space-y-1">
                 <li v-for="(groupName, index) in ['groupTerminals', 'groupParity', 'groupColumns', 'groupDozens', 'groupRecent']" :key="index" class="flex justify-between items-center">
-                  <span class="text-sm">{{ getLocalStatGroupLabel(groupName) }}</span>
-                  <span class="font-medium text-green-600 bg-green-50 px-2 py-1 rounded-lg text-sm">
+                  <span class="text-xs sm:text-sm break-words flex-1 mr-2">{{ getLocalStatGroupLabel(groupName) }}</span>
+                  <span class="font-medium text-green-600 bg-green-50 px-2 py-1 rounded-lg text-xs sm:text-sm whitespace-nowrap">
                     {{ groupWinStats[groupName] || 0 }} victorias
                   </span>
                 </li>
@@ -195,11 +198,11 @@
 
             <!-- Grupos IA -->
             <div class="bg-white p-3 rounded shadow-sm">
-              <h4 class="font-medium text-gray-700 mb-2">Grupos IA</h4>
+              <h4 class="font-medium text-gray-700 mb-2 text-sm sm:text-base">Grupos IA</h4>
               <ul class="space-y-1">
                 <li v-for="(groupName, index) in ['groupCycles', 'groupNeighbors', 'groupSection', 'groupAlternate', 'groupRecentAI', 'groupSectors', 'groupVecinos']" :key="index" class="flex justify-between items-center">
-                  <span class="text-sm">{{ getAIGroupLabel(groupName) }}</span>
-                  <span class="font-medium text-purple-600 bg-purple-50 px-2 py-1 rounded-lg text-sm">
+                  <span class="text-xs sm:text-sm break-words flex-1 mr-2">{{ getAIGroupLabel(groupName) }}</span>
+                  <span class="font-medium text-purple-600 bg-purple-50 px-2 py-1 rounded-lg text-xs sm:text-sm whitespace-nowrap">
                     {{ groupWinStats[groupName] || 0 }} victorias
                   </span>
                 </li>
@@ -208,11 +211,11 @@
 
             <!-- Sectores de ruleta -->
             <div class="bg-white p-3 rounded shadow-sm">
-              <h4 class="font-medium text-gray-700 mb-2">Sectores de Ruleta</h4>
+              <h4 class="font-medium text-gray-700 mb-2 text-sm sm:text-base">Sectores de Ruleta</h4>
               <ul class="space-y-1">
                 <li v-for="(groupName, displayName) in { 'voisinsDeZero': 'Vecinos del Cero', 'tiers': 'Tercios del Cilindro', 'orphelins': 'Huérfanos', 'jeuZero': 'Juego del Cero' }" :key="groupName" class="flex justify-between items-center">
-                  <span class="text-sm">{{ displayName }}</span>
-                  <span class="font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-lg text-sm">
+                  <span class="text-xs sm:text-sm break-words flex-1 mr-2">{{ displayName }}</span>
+                  <span class="font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-lg text-xs sm:text-sm whitespace-nowrap">
                     {{ groupWinStats[groupName] || 0 }} victorias
                   </span>
                 </li>
@@ -221,7 +224,7 @@
           </div>
         </transition>
 
-        <div v-if="!showStatsDetails" class="text-center text-sm text-indigo-500 mt-2">
+        <div v-if="!showStatsDetails" class="text-center text-xs sm:text-sm text-indigo-500 mt-2">
           Haz clic en "Ver Detalles" para mostrar el análisis completo de victorias por grupo
         </div>
       </div>
