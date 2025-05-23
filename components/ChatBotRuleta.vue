@@ -115,12 +115,19 @@
           </div>
         </div>
       </div>
-      <div class="flex justify-center">
+      <div class="flex justify-center gap-2">
         <button 
           @click="resetCounters" 
           class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded"
         >
           Reiniciar contadores
+        </button>
+        <button 
+          @click="purgeAllStatistics" 
+          class="text-xs bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded"
+          title="Borra TODAS las estadísticas del sistema"
+        >
+          Purgar todo
         </button>
       </div>
     </div>
@@ -2892,6 +2899,107 @@ const handleRecognizedNumber = async (numberToAdd: number) => {
       id: Date.now(),
       sender: 'bot',
       message: `Ha ocurrido un error al procesar el número. Por favor, intenta de nuevo.`,
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+
+// Función para purgar todas las estadísticas
+const purgeAllStatistics = async () => {
+  if (!confirm('¿Estás seguro de que quieres purgar TODAS las estadísticas? Esta acción no se puede deshacer.')) {
+    return;
+  }
+  
+  try {
+    // 1. Resetear contadores del chat
+    winCount.value = 0;
+    loseCount.value = 0;
+    
+    // 2. Resetear estadísticas de grupos
+    groupWinStats.value = {
+      group20: 0,
+      group15: 0,
+      group12: 0,
+      group8: 0,
+      group6: 0,
+      group4: 0,
+      groupTerminals: 0,
+      groupParity: 0,
+      groupColumns: 0,
+      groupDozens: 0,
+      groupRecent: 0,
+      groupCycles: 0,
+      groupNeighbors: 0,
+      groupSection: 0,
+      groupAlternate: 0,
+      groupRecentAI: 0,
+      groupSectors: 0,
+      groupVecinos: 0,
+      voisinsDeZero: 0,
+      tiers: 0,
+      orphelins: 0,
+      jeuZero: 0,
+      redSector: 0,
+      blackSector: 0
+    };
+    
+    // 3. Resetear contadores y historial de sectores
+    sectorCounts.value = {
+      'voisinsDeZero': 0,
+      'tiers': 0,
+      'orphelins': 0,
+      'jeuZero': 0,
+      'redSector': 0,
+      'blackSector': 0
+    };
+    sectorHistory.value = [];
+    
+    // 4. Limpiar localStorage
+    if (process.client) {
+      localStorage.removeItem('roulette_wins');
+      localStorage.removeItem('roulette_losses');
+      localStorage.removeItem('roulette_group_stats');
+      localStorage.removeItem('roulette_sector_history');
+      localStorage.removeItem('roulette_sector_counts');
+      localStorage.removeItem('roulette_results_history');
+    }
+    
+    // 5. Llamar al backend para purgar estadísticas de la base de datos
+    try {
+      const response = await fetch(`${apiBaseUrl.value}/purge-statistics`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        console.warn('No se pudo purgar las estadísticas del backend, pero las estadísticas locales fueron limpiadas');
+      }
+    } catch (error) {
+      console.warn('Error al purgar estadísticas del backend:', error);
+    }
+    
+    // 6. Emitir evento para que otros componentes se actualicen
+    if (emitter) {
+      emitter.emit('statistics-purged');
+      emitter.emit('update-stats');
+    }
+    
+    // 7. Mostrar mensaje de confirmación
+    chatMessages.value.push({
+      id: Date.now(),
+      sender: 'bot',
+      message: '🧹 Se han purgado TODAS las estadísticas del sistema:\n\n✅ Contadores de victorias y derrotas\n✅ Estadísticas de grupos\n✅ Historial de sectores\n✅ Datos de localStorage\n✅ Estadísticas del backend\n\nEl sistema está ahora completamente limpio y listo para empezar de nuevo.',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error al purgar estadísticas:', error);
+    chatMessages.value.push({
+      id: Date.now(),
+      sender: 'bot',
+      message: 'Hubo un error al purgar las estadísticas. Algunas estadísticas locales fueron limpiadas, pero puede que haya un problema con el backend.',
       timestamp: new Date().toISOString()
     });
   }

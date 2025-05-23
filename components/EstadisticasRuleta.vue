@@ -1,20 +1,27 @@
 <template>
   <div class="bg-white p-4 rounded-lg shadow-md h-full overflow-auto">
     <div class="flex justify-between items-center mb-4">
-      <h2 class="text-xl font-bold text-gray-800">Estadísticas y Análisis</h2>
-      <div class="flex items-center gap-2">
-        <span v-if="updateLoading" class="text-xs text-gray-500">Actualizando...</span>
-        <span v-else class="text-xs text-gray-500">Actualizado: {{ formattedLastUpdated }}</span>
+      <h2 class="text-xl font-bold text-gray-800">Estadísticas de la Ruleta</h2>
+      <div class="flex gap-2">
         <button 
-          @click="fetchStats(); fetchSequences();"
-          class="bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
+          @click="fetchStats" 
+          class="bg-blue-600 text-white px-3 py-1 rounded text-sm"
           :disabled="updateLoading"
         >
-          <span v-if="updateLoading" class="animate-spin">⟳</span>
-          <span v-else>⟳</span>
-          <span>Actualizar</span>
+          {{ updateLoading ? 'Actualizando...' : 'Actualizar' }}
+        </button>
+        <button 
+          @click="purgeAllStatistics" 
+          class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm"
+          title="Purga todas las estadísticas del sistema"
+        >
+          Purgar todo
         </button>
       </div>
+    </div>
+    
+    <div class="text-xs text-gray-500 mb-4">
+      Última actualización: {{ formattedLastUpdated }}
     </div>
     
     <!-- Actualizar estadísticas -->
@@ -420,4 +427,57 @@ const getNumberBackgroundClass = (num: number) => {
 const formattedLastUpdated = computed(() => {
   return lastUpdated.value.toLocaleTimeString();
 });
+
+// Función para purgar todas las estadísticas
+const purgeAllStatistics = async () => {
+  if (!confirm('¿Estás seguro de que quieres purgar TODAS las estadísticas del sistema? Esta acción eliminará:\n\n• Todos los números de la base de datos\n• Estadísticas de columnas y docenas\n• Números calientes y fríos\n• Contadores par/impar y rojo/negro\n• Historial completo\n\nEsta acción NO se puede deshacer.')) {
+    return;
+  }
+  
+  try {
+    updateLoading.value = true;
+    
+    // Llamar al endpoint de purga del backend
+    const apiBaseUrl = process.server ? '' : window.location.origin.includes('localhost') ? 'http://localhost:5000' : window.location.origin;
+    const response = await fetch(`${apiBaseUrl}/purge-statistics`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      // Resetear estadísticas locales
+      stats.value = {
+        hotNumbers: [],
+        coldNumbers: [],
+        redVsBlack: { red: 0, black: 0 },
+        oddVsEven: { odd: 0, even: 0 },
+        columns: { c1: 0, c2: 0, c3: 0 },
+        dozens: { d1: 0, d2: 0, d3: 0 },
+        lastNumbers: []
+      };
+      
+      sequences.value = null;
+      patternAnalysis.value = '';
+      lastUpdated.value = new Date();
+      
+      // Emitir evento para que otros componentes se actualicen
+      if (emitter) {
+        emitter.emit('statistics-purged');
+        emitter.emit('update-stats');
+      }
+      
+      alert('✅ Todas las estadísticas han sido purgadas exitosamente. El sistema está completamente limpio.');
+    } else {
+      const error = await response.json();
+      alert(`❌ Error al purgar estadísticas: ${error.error || 'Error desconocido'}`);
+    }
+  } catch (error) {
+    console.error('Error al purgar estadísticas:', error);
+    alert('❌ Error de conexión al purgar estadísticas. Verifica tu conexión e intenta de nuevo.');
+  } finally {
+    updateLoading.value = false;
+  }
+};
 </script> 

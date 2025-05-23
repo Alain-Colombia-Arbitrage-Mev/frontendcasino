@@ -58,13 +58,22 @@
     <div class="mb-4">
       <div class="flex justify-between items-center mb-2">
         <h3 class="text-lg font-semibold text-gray-700">Estadísticas básicas</h3>
-        <button 
-          @click="fetchLastNumbers"
-          class="bg-blue-600 text-white px-2 py-1 rounded text-xs"
-          title="Actualizar estadísticas"
-        >
-          <span>↻</span>
-        </button>
+        <div class="flex gap-2">
+          <button 
+            @click="fetchLastNumbers"
+            class="bg-blue-600 text-white px-2 py-1 rounded text-xs"
+            title="Actualizar estadísticas"
+          >
+            <span>↻</span>
+          </button>
+          <button 
+            @click="purgeAllStatistics"
+            class="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs"
+            title="Purgar todas las estadísticas"
+          >
+            Purgar
+          </button>
+        </div>
       </div>
       <div class="grid grid-cols-2 gap-4">
         <div class="bg-gray-100 p-3 rounded">
@@ -320,6 +329,31 @@ const updateDataManually = async () => {
   } catch (error) {
     console.error('Error al actualizar datos:', error);
     inputMessage.value = 'Error al actualizar datos';
+    inputMessageClass.value = 'text-red-600';
+  } finally {
+    isUpdating.value = false;
+  }
+};
+
+// Función para purgar todas las estadísticas
+const purgeAllStatistics = async () => {
+  try {
+    isUpdating.value = true;
+    inputMessage.value = 'Purgando estadísticas...';
+    inputMessageClass.value = 'text-blue-600';
+    
+    await fetchLastNumbers();
+    
+    inputMessage.value = 'Estadísticas purgadas correctamente';
+    inputMessageClass.value = 'text-green-600';
+    
+    // Limpiar mensaje después de un tiempo
+    setTimeout(() => {
+      inputMessage.value = '';
+    }, 3000);
+  } catch (error) {
+    console.error('Error al purgar estadísticas:', error);
+    inputMessage.value = 'Error al purgar estadísticas';
     inputMessageClass.value = 'text-red-600';
   } finally {
     isUpdating.value = false;
