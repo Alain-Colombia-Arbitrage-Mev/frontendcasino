@@ -9,17 +9,29 @@
     
     <!-- Área de chat -->
     <div class="flex-1 overflow-y-auto mb-4 border rounded-lg p-3">
-      <div class="flex justify-end mb-2">
-        <button 
-          @click="clearLastMessages(5)" 
-          class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-600 px-2 py-1 rounded flex items-center"
-          v-if="chatMessages.length > 6"
-        >
-          <span>Limpiar 5 últimos mensajes</span>
-        </button>
+      <div class="flex justify-between items-center mb-2">
+        <div class="text-xs text-gray-500">
+          Mostrando últimas 2 conversaciones ({{ Math.min(conversationPairs.length, 2) }}/{{ conversationPairs.length }})
+        </div>
+        <div class="flex gap-1">
+          <button 
+            @click="clearAllExceptLastTwo()" 
+            class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded flex items-center"
+            v-if="conversationPairs.length > 2"
+          >
+            <span>Limpiar chat</span>
+          </button>
+          <button 
+            @click="clearLastMessages(2)" 
+            class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-600 px-2 py-1 rounded flex items-center"
+            v-if="chatMessages.length > 4"
+          >
+            <span>Eliminar 2 últimos</span>
+          </button>
+        </div>
       </div>
       <div 
-        v-for="(message, index) in chatMessages" 
+        v-for="(message, index) in displayedMessages" 
         :key="'msg-' + message.id"
         class="mb-3 p-2 rounded-lg"
         :class="message.sender === 'user' ? 'bg-blue-100 ml-8' : 'bg-gray-100 mr-8'"
@@ -46,6 +58,12 @@
         </div>
         <p>{{ message.message }}</p>
         <div class="text-xs text-gray-500 mt-1">{{ formatTime(message.timestamp) }}</div>
+      </div>
+      
+      <!-- Mensaje cuando no hay conversaciones -->
+      <div v-if="chatMessages.length === 0" class="text-center text-gray-500 py-8">
+        <p class="text-sm">¡Hola! Soy tu asistente de ruleta.</p>
+        <p class="text-xs mt-1">Escribe un número o di un comando para comenzar.</p>
       </div>
     </div>
     
@@ -580,6 +598,89 @@ const groupWinStats = ref<Record<string, number>>({
 let recognition: any = null;
 // Nuevo sistema de reconocimiento con Google Speech
 const audioRecorder = ref<AudioRecorder | null>(null);
+
+// Nuevas variables para manejo de conversaciones limitadas
+const maxConversations = ref(2);
+
+// Computed property para obtener pares de conversación (usuario + bot)
+const conversationPairs = computed(() => {
+  const pairs = [];
+  let currentPair: { user?: any, bot?: any } = {};
+  
+  for (const message of chatMessages.value) {
+    if (message.sender === 'user') {
+      // Si ya hay un par completo, guardarlo y empezar uno nuevo
+      if (currentPair.user && currentPair.bot) {
+        pairs.push(currentPair);
+        currentPair = {};
+      }
+      currentPair.user = message;
+    } else if (message.sender === 'bot') {
+      // Si hay un mensaje de usuario esperando, completar el par
+      if (currentPair.user) {
+        currentPair.bot = message;
+        pairs.push(currentPair);
+        currentPair = {};
+      } else {
+        // Mensaje de bot sin usuario asociado (mensaje del sistema)
+        pairs.push({ bot: message });
+      }
+    }
+  }
+  
+  // Si queda un par incompleto, agregarlo
+  if (currentPair.user || currentPair.bot) {
+    pairs.push(currentPair);
+  }
+  
+  return pairs;
+});
+
+// Computed property para mostrar solo las últimas conversaciones
+const displayedMessages = computed(() => {
+  const lastPairs = conversationPairs.value.slice(-maxConversations.value);
+  const messages = [];
+  
+  for (const pair of lastPairs) {
+    if (pair.user) messages.push(pair.user);
+    if (pair.bot) messages.push(pair.bot);
+  }
+  
+  return messages;
+});
+
+// Función para limpiar todas las conversaciones excepto las últimas 2
+const clearAllExceptLastTwo = () => {
+  const lastMessages = displayedMessages.value;
+  chatMessages.value = [...lastMessages];
+  
+  // Agregar mensaje informativo
+  chatMessages.value.push({
+    id: Date.now(),
+    sender: 'bot',
+    message: 'Se ha limpiado el chat, manteniendo solo las últimas 2 conversaciones.',
+    timestamp: new Date().toISOString()
+  });
+};
+
+// Función para agregar un mensaje y mantener el límite automáticamente
+const addMessage = (message: ChatMessage) => {
+  chatMessages.value.push(message);
+  
+  // Mantener automáticamente solo las últimas conversaciones si hay demasiadas
+  const totalPairs = conversationPairs.value.length;
+  if (totalPairs > maxConversations.value + 1) { // +1 para dar margen antes de limpiar
+    const lastPairs = conversationPairs.value.slice(-maxConversations.value);
+    const messages = [];
+    
+    for (const pair of lastPairs) {
+      if (pair.user) messages.push(pair.user);
+      if (pair.bot) messages.push(pair.bot);
+    }
+    
+    chatMessages.value = messages;
+  }
+};
 
 // Definición de tipo para el resultado de checkGroupsForNumber
 type GroupCheckResult = {
@@ -2407,8 +2508,8 @@ const clearLastMessages = (count: number) => {
   // Eliminar los últimos 'count' mensajes
   chatMessages.value = chatMessages.value.slice(0, -count);
   
-  // Añadir un mensaje de sistema para indicar que se limpiaron mensajes
-  chatMessages.value.push({
+  // Añadir un mensaje de sistema para indicar que se limpiaron mensajes usando la nueva función
+  addMessage({
     id: Date.now(),
     sender: 'bot',
     message: `Se han eliminado los últimos ${count} mensajes para mantener el chat más limpio.`,
